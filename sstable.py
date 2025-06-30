@@ -1,9 +1,10 @@
 import os
+import time
 from memtable import Memtable
 from sstable_writer import SSTableWriter
 from sstable_reader import SSTableReader
 import glob
-import time
+from sortedcontainers import SortedDict
 class SSTable:
     """
     A simple Log-Structured Merge-Tree (LSM-Tree) implementation.
@@ -13,7 +14,7 @@ class SSTable:
         self.db_folder = db_folder
         self.index_sparsity = index_sparsity
         self.memtable = Memtable()
-        self.sstable_cache = {}
+        self.index_cache = SortedDict()
 
         os.makedirs(self.db_folder, exist_ok=True)
                 # Find all current sstable files
@@ -21,7 +22,7 @@ class SSTable:
         for sst_file in current_files:
             index_file = sst_file.replace(".sst", ".index")
             if os.path.exists(index_file):
-                self.sstable_cache[sst_file] = SSTableReader(sst_file, index_file)
+                self.index_cache[sst_file] = SSTableReader(sst_file, index_file)
 
     def set(self, key, value):
         """Sets a key-value pair in the memtable and flushes if full."""
@@ -41,8 +42,8 @@ class SSTable:
 
         print(f"Searching in SSTables for key: {key}")
         # Search SSTables from newest to oldest
-        for sst_file in sorted(self.sstable_cache.keys(), reverse=True):
-            reader = self.sstable_cache.get(sst_file)
+        for sst_file in reversed(self.index_cache.keys()):
+            reader = self.index_cache.get(sst_file)
             if reader:
                 value = reader.get(key)
             if value is not None:
@@ -67,4 +68,4 @@ class SSTable:
         
         print(f"Flushed memtable to {data_filename} and {index_filename}")
         self.memtable.clear()
-        self.sstable_cache[data_filename] = SSTableReader(data_filename, index_filename)
+        self.index_cache[data_filename] = SSTableReader(data_filename, index_filename)
